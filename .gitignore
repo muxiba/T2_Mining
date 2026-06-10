@@ -8,3 +8,10 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Arquivos de projeto real (não publicar)
+Plano_2026_rev.dxf
+03-Cubagem_2026_.csv
+# Padrão geral: qualquer arquivo que não seja os de exemplo
+!sample_data.csv
+!sample_geometry.dxf
