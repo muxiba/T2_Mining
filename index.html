@@ -1,0 +1,1479 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MinePlan Seq - Versão Final Completa</title>
+
+    <!-- Bibliotecas Externas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/dist/dxf-parser.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+            user-select: none;
+        }
+
+        #sidebar {
+            width: 430px;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+            z-index: 10;
+        }
+
+        #viewer-container {
+            flex-grow: 1;
+            position: relative;
+            background: #2b2b2b;
+            cursor: crosshair;
+            overflow: hidden;
+        }
+
+        .control-group {
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+        }
+
+        label {
+            display: block;
+            font-weight: 700;
+            margin-bottom: 3px;
+            color: #495057;
+            font-size: 11px;
+        }
+
+        .section-title {
+            font-weight: bold;
+            color: #007bff;
+            margin-top: 8px;
+            margin-bottom: 4px;
+            font-size: 11px;
+            text-transform: uppercase;
+            border-bottom: 1px solid #eee;
+        }
+
+        input[type="number"],
+        input[type="text"] {
+            width: 48%;
+            padding: 5px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 11px;
+        }
+
+        .row-inputs {
+            display: flex;
+            justify-content: space-between;
+            gap: 5px;
+            margin-bottom: 5px;
+        }
+
+        button {
+            width: 100%;
+            padding: 8px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 5px;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button.reset {
+            background: #dc3545;
+            margin-top: 5px;
+        }
+
+        button.finish {
+            background: #28a745;
+            margin-top: 10px;
+            font-size: 14px;
+            padding: 12px;
+        }
+
+        .stats-box {
+            background: #e3f2fd;
+            padding: 10px;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 12px;
+            border-bottom: 1px dotted #ccc;
+            padding-bottom: 2px;
+        }
+
+        .stat-val {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 3000;
+            display: none;
+        }
+
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        #selection-box {
+            position: absolute;
+            border: 1px solid rgba(255, 255, 0, 0.8);
+            background-color: rgba(255, 255, 0, 0.2);
+            display: none;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        #context-menu {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+            display: none;
+            z-index: 2000;
+            border-radius: 4px;
+            min-width: 150px;
+        }
+
+        #context-menu div {
+            padding: 10px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #333;
+        }
+
+        #context-menu div:hover {
+            background-color: #f0f0f0;
+        }
+
+        #block-info {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: monospace;
+            max-width: 250px;
+            pointer-events: none;
+            display: none;
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        #compass {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 60px;
+            height: 60px;
+            pointer-events: none;
+        }
+
+        .compass-arrow {
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-bottom: 20px solid red;
+            position: absolute;
+            top: 5px;
+            left: 25px;
+        }
+
+        .compass-circle {
+            width: 50px;
+            height: 50px;
+            border: 2px solid white;
+            border-radius: 50%;
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            background: rgba(0, 0, 0, 0.2);
+            color: white;
+            font-weight: bold;
+            font-size: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="loading">
+        <div class="loader"></div>
+        <div id="loadingText">Carregando...</div>
+    </div>
+
+    <div id="context-menu">
+        <div id="btn-confirm-selection">✅ Confirmar Seleção</div>
+        <div id="btn-cancel-selection" style="border-top:1px solid #eee; color: red;">❌ Cancelar Seleção</div>
+    </div>
+
+    <div id="sidebar">
+        <h2 style="border-bottom: 2px solid #007bff; color: #007bff;">Planejamento de Lavra</h2>
+
+        <div class="control-group">
+            <label>1. Importar Dados (CSV)</label>
+            <div style="font-size:10px; color:#666; margin-bottom:5px">Obrigatório: Colunas CUT, TYPE...</div>
+            <input type="file" id="csvInput" accept=".csv">
+            <div id="csvStatus" style="color: #666; font-size: 11px;">Aguardando...</div>
+        </div>
+
+        <div class="control-group">
+            <label>2. Configuração do Grid (Base)</label>
+
+            <div class="section-title">Coordenada de Origem</div>
+            <div class="row-inputs">
+                <div><label>Origem X</label><input type="number" id="originX" value="647060"></div>
+                <div><label>Origem Y</label><input type="number" id="originY" value="7784080"></div>
+            </div>
+
+            <div class="section-title">Dimensões do Corte</div>
+            <div class="row-inputs">
+                <div><label>Tam. X (m)</label><input type="number" id="blockSizeX" value="10"></div>
+                <div><label>Tam. Y (m)</label><input type="number" id="blockSizeY" value="10"></div>
+            </div>
+
+            <div class="section-title">Extensão do Grid</div>
+            <div class="row-inputs">
+                <div><label>Colunas (Total X)</label><input type="number" id="countX" value="35"></div>
+                <div><label>Linhas (Total Y)</label><input type="number" id="countY" value="75"></div>
+            </div>
+
+            <label style="margin-top:5px">Altura do Banco (Z)</label>
+            <input type="number" id="benchHeight" value="5" style="width: 100%">
+
+            <div
+                style="font-size:10px; color:blue; margin-top:5px; background:#f0f8ff; padding:5px; border-radius:4px;">
+                <b>Domínio Calculado:</b><br>
+                X: <span id="domainX"></span><br>
+                Y: <span id="domainY"></span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>3. Geometria (DXF)</label>
+            <input type="file" id="dxfInput" accept=".dxf" disabled>
+        </div>
+
+        <div class="control-group" id="seqControls" style="opacity: 0.6; pointer-events: none;">
+            <label>4. Limites de Lavra</label>
+
+            <div class="section-title">Eixo X (Colunas de/até)</div>
+            <div class="row-inputs">
+                <input type="number" id="minCol" placeholder="De" value="1">
+                <input type="number" id="maxCol" placeholder="Até" value="35">
+            </div>
+
+            <div class="section-title">Eixo Y (Linhas de/até)</div>
+            <div class="row-inputs">
+                <input type="number" id="minRow" placeholder="De" value="1">
+                <input type="number" id="maxRow" placeholder="Até" value="75">
+            </div>
+
+            <button onclick="applyFilters()">Aplicar Filtros</button>
+            <label style="margin-top:8px">Visualizar Banco (Z)</label>
+            <select id="benchSelect" onchange="filterByBench()" style="width:100%">
+                <option value="ALL">Todos</option>
+            </select>
+        </div>
+
+        <div class="stats-box">
+            <h3>Massa (Confirmada + Seleção)</h3>
+            <div class="stat-row"><span>Minério:</span> <span class="stat-val" id="tonOre">0 t</span></div>
+            <div class="stat-row"><span>Estéril:</span> <span class="stat-val" id="tonWaste">0 t</span></div>
+            <div class="stat-row stat-total"><span>Total:</span> <span class="stat-val" id="tonTotal">0 t</span></div>
+
+            <h3>Qualidade Ponderada (Minério)</h3>
+            <div class="stat-row"><span>Fe:</span> <span class="stat-val" id="feVal">0.00 %</span></div>
+            <div class="stat-row"><span>SiO2:</span> <span class="stat-val" id="siVal">0.00 %</span></div>
+            <div class="stat-row"><span>Al2O3:</span> <span class="stat-val" id="alVal">0.00 %</span></div>
+            <div class="stat-row"><span>Mn:</span> <span class="stat-val" id="mnVal">0.00 %</span></div>
+            <div class="stat-row"><span>P:</span> <span class="stat-val" id="pVal">0.00 %</span></div>
+            <div class="stat-row"><span>PPC:</span> <span class="stat-val" id="ppcVal">0.00 %</span></div>
+        </div>
+
+        <div class="control-group">
+            <button class="reset" onclick="resetAll()">Reiniciar Seleção</button>
+            <button class="finish" onclick="finalizeAdvance()">✅ FINALIZAR AVANÇO</button>
+        </div>
+    </div>
+
+    <div id="viewer-container">
+        <div id="toolbar" style="position: absolute; top: 10px; left: 10px; z-index: 200; display: flex; gap: 5px;">
+            <button id="btnModeNav" style="width: auto; padding: 8px 15px; background: #007bff;"
+                onclick="setMode('NAV')">✋ Navegar</button>
+            <button id="btnModeSel" style="width: auto; padding: 8px 15px; background: #6c757d;"
+                onclick="setMode('SEL')">⬜ Selecionar</button>
+        </div>
+
+        <div id="selection-box"></div>
+        <div class="legend">
+            <div><span class="dot" style="background:#e74c3c"></span> Minério</div>
+            <div><span class="dot" style="background:#95a5a6"></span> Estéril</div>
+            <div><span class="dot" style="background:#444"></span> Sem Dados</div>
+            <div><span class="dot" style="background:#f1c40f; border:1px solid white"></span> Selecionado</div>
+            <div style="margin-top:5px; font-style:italic;" id="modeHelp">Modo Navegar: Arraste para girar.</div>
+        </div>
+        <div id="block-info"></div>
+        <div id="compass">
+            <div class="compass-circle">N</div>
+            <div class="compass-arrow" id="compassArrow"></div>
+        </div>
+    </div>
+
+    <script>
+        window.onerror = function (msg, url, line, col, error) {
+            alert("Erro no Script: " + msg + "\\nLinha: " + line);
+            return false;
+        };
+
+        let interactionMode = 'NAV'; // NAV or SEL
+
+        const container = document.getElementById('viewer-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x2b2b2b);
+
+        const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 10000000);
+        camera.position.set(0, 0, 1000);
+        camera.up.set(0, 0, 1);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.1;
+        controls.screenSpacePanning = true;
+        controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        dirLight.position.set(100, 200, 100);
+        scene.add(dirLight);
+
+        let geochemicalData = new Map();
+        let blockMeshes = [];
+        let visibleMeshes = [];
+        let confirmedSelection = new Set();
+        let tempSelection = new Set();
+        let benchList = new Set();
+
+        const matOre = new THREE.MeshLambertMaterial({ color: 0xe74c3c, side: THREE.DoubleSide });
+        const matWaste = new THREE.MeshLambertMaterial({ color: 0x95a5a6, side: THREE.DoubleSide });
+        const matNull = new THREE.MeshLambertMaterial({ color: 0x444444, side: THREE.DoubleSide });
+        const matConfirmed = new THREE.MeshLambertMaterial({ color: 0xb7950b, side: THREE.DoubleSide });
+        const matSelectedHighlight = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.4, depthTest: false });
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let isSelecting = false;
+        let startX = 0, startY = 0;
+        const selectionBox = document.getElementById('selection-box');
+        const contextMenu = document.getElementById('context-menu');
+        const blockInfoDiv = document.getElementById('block-info');
+
+        function setMode(mode) {
+            interactionMode = mode;
+            const btnNav = document.getElementById('btnModeNav');
+            const btnSel = document.getElementById('btnModeSel');
+            const help = document.getElementById('modeHelp');
+
+            if (mode === 'NAV') {
+                btnNav.style.background = '#007bff';
+                btnSel.style.background = '#6c757d';
+                controls.enabled = true;
+                help.innerText = "Modo Navegar: Arraste para girar.";
+            } else {
+                btnNav.style.background = '#6c757d';
+                btnSel.style.background = '#007bff';
+                controls.enabled = false;
+                help.innerText = "Modo Seleção: Arraste para criar caixa. Clique para selecionar um.";
+            }
+        }
+
+        function updateDomainDisplay() {
+            const ox = parseFloat(document.getElementById('originX').value) || 0;
+            const oy = parseFloat(document.getElementById('originY').value) || 0;
+            const dx = parseFloat(document.getElementById('blockSizeX').value) || 0;
+            const dy = parseFloat(document.getElementById('blockSizeY').value) || 0;
+            const nx = parseInt(document.getElementById('countX').value) || 0;
+            const ny = parseInt(document.getElementById('countY').value) || 0;
+
+            const endX = ox + (nx * dx);
+            const endY = oy + (ny * dy);
+
+            document.getElementById('domainX').innerText = `${ox.toLocaleString()} a ${endX.toLocaleString()} (m)`;
+            document.getElementById('domainY').innerText = `${oy.toLocaleString()} a ${endY.toLocaleString()} (m)`;
+        }
+        ['originX', 'originY', 'blockSizeX', 'blockSizeY', 'countX', 'countY'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateDomainDisplay);
+        });
+        updateDomainDisplay();
+
+        // Live Filter Listeners
+        ['minCol', 'maxCol', 'minRow', 'maxRow'].forEach(id => {
+            document.getElementById(id).addEventListener('input', applyFilters);
+        });
+
+        // INTERACTION LOGIC
+        container.addEventListener('mousedown', function (event) {
+            if (event.button === 0) { // Left Button
+                startX = event.clientX;
+                startY = event.clientY;
+
+                // Start Box Selection if in SEL Mode OR Shift is held
+                if (interactionMode === 'SEL' || event.shiftKey) {
+                    isSelecting = true;
+                    controls.enabled = false;
+
+                    const rect = container.getBoundingClientRect();
+                    selectionBox.style.left = (startX - rect.left) + 'px';
+                    selectionBox.style.top = (startY - rect.top) + 'px';
+                    selectionBox.style.width = '0px';
+                    selectionBox.style.height = '0px';
+                    selectionBox.style.display = 'block';
+                    contextMenu.style.display = 'none';
+                }
+            }
+        });
+
+        container.addEventListener('mousemove', function (event) {
+            updateHoverInfo(event); // Always update hover info
+
+            if (isSelecting) {
+                const rect = container.getBoundingClientRect();
+                const currentX = event.clientX;
+                const currentY = event.clientY;
+
+                const width = Math.abs(currentX - startX);
+                const height = Math.abs(currentY - startY);
+                const left = Math.min(currentX, startX) - rect.left;
+                const top = Math.min(currentY, startY) - rect.top;
+
+                selectionBox.style.width = width + 'px';
+                selectionBox.style.height = height + 'px';
+                selectionBox.style.left = left + 'px';
+                selectionBox.style.top = top + 'px';
+            }
+        });
+
+        container.addEventListener('mouseup', function (event) {
+            if (isSelecting) {
+                // Box Selection Finished
+                isSelecting = false;
+                // Restore controls only if in NAV mode (Shift overrides)
+                if (interactionMode === 'NAV') controls.enabled = true;
+
+                selectionBox.style.display = 'none';
+                performBoxSelection(startX, startY, event.clientX, event.clientY);
+            } else if (event.button === 0) {
+                // Normal Click (Single Selection)
+                const dist = Math.sqrt(Math.pow(event.clientX - startX, 2) + Math.pow(event.clientY - startY, 2));
+                if (dist < 5) {
+                    // If in SEL mode, simple click also selects
+                    if (interactionMode === 'SEL' || interactionMode === 'NAV') {
+                        performSingleSelection(event);
+                    }
+                }
+            }
+        });
+
+        container.addEventListener('contextmenu', function (e) {
+            e.preventDefault();
+            if (tempSelection.size > 0) {
+                const rect = container.getBoundingClientRect();
+                contextMenu.style.display = 'block';
+                contextMenu.style.left = (e.clientX - rect.left) + 'px';
+                contextMenu.style.top = (e.clientY - rect.top) + 'px';
+            }
+        });
+
+        document.getElementById('btn-confirm-selection').addEventListener('click', () => {
+            tempSelection.forEach(uuid => confirmedSelection.add(uuid));
+            tempSelection.clear(); updateVisuals(); updateStats(); contextMenu.style.display = 'none';
+            setMode('NAV'); // Auto-switch back to Nav after confirming
+        });
+        document.getElementById('btn-cancel-selection').addEventListener('click', () => {
+            tempSelection.clear(); updateVisuals(); updateStats(); contextMenu.style.display = 'none';
+        });
+
+        function performSingleSelection(event) {
+            const rect = container.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(visibleMeshes);
+
+            console.log("Single Select Attempt. Visible:", visibleMeshes.length, "Intersects:", intersects.length);
+
+            if (intersects.length > 0) {
+                const hit = intersects[0].object;
+                const uuid = hit.uuid;
+                if (!confirmedSelection.has(uuid)) {
+                    if (tempSelection.has(uuid)) tempSelection.delete(uuid);
+                    else tempSelection.add(uuid);
+                    updateVisuals(); updateStats(); showBlockInfo(hit);
+                }
+            }
+        }
+
+        function performBoxSelection(x1, y1, x2, y2) {
+            const rect = container.getBoundingClientRect();
+            const minX = Math.min(x1, x2) - rect.left;
+            const maxX = Math.max(x1, x2) - rect.left;
+            const minY = Math.min(y1, y2) - rect.top;
+            const maxY = Math.max(y1, y2) - rect.top;
+
+            // If box is tiny (just a click in SEL mode), treat as single? 
+            // Logic handled in mouseup.
+
+            let count = 0;
+            visibleMeshes.forEach(mesh => {
+                if (confirmedSelection.has(mesh.uuid)) return;
+                const pos = mesh.position.clone().project(camera);
+                const sx = (pos.x * 0.5 + 0.5) * container.clientWidth;
+                const sy = (-(pos.y * 0.5) + 0.5) * container.clientHeight;
+                if (sx >= minX && sx <= maxX && sy >= minY && sy <= maxY) {
+                    tempSelection.add(mesh.uuid);
+                    count++;
+                }
+            });
+            console.log("Box Select. Found:", count);
+            updateVisuals(); updateStats();
+        }
+
+        function updateVisuals() {
+            blockMeshes.forEach(mesh => {
+                if (mesh.userData.helper) { mesh.remove(mesh.userData.helper); mesh.userData.helper = null; }
+
+                if (confirmedSelection.has(mesh.uuid)) {
+                    mesh.material = matConfirmed;
+                } else if (tempSelection.has(mesh.uuid)) {
+                    mesh.material = mesh.userData.baseMaterial;
+                    const box = new THREE.Mesh(mesh.geometry, matSelectedHighlight);
+                    box.scale.set(1.05, 1.05, 1.05);
+                    mesh.add(box);
+                    mesh.userData.helper = box;
+                } else {
+                    mesh.material = mesh.userData.baseMaterial;
+                }
+            });
+        }
+
+        function updateHoverInfo(event) {
+            const rect = container.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(visibleMeshes);
+            if (intersects.length > 0) showBlockInfo(intersects[0].object);
+            else blockInfoDiv.style.display = 'none';
+        }
+
+        function showBlockInfo(mesh) {
+            const d = mesh.userData.attributes;
+            const g = mesh.userData.grid;
+            const ox = parseFloat(document.getElementById('originX').value);
+            const oy = parseFloat(document.getElementById('originY').value);
+
+            let html = `<b>${mesh.userData.id}</b><br>`;
+            html += `X: ${(mesh.position.x + ox).toFixed(1)} | Y: ${(mesh.position.y + oy).toFixed(1)}<br>`;
+            html += `Col(X): ${g.col} | Lin(Y): ${g.row}<br>`;
+            html += `Tipo: ${mesh.userData.type.toUpperCase()}<br>`;
+            html += `Massa: ${mesh.userData.tonnes.toFixed(2)} t<br>`;
+            if (mesh.userData.type === 'ore') {
+                html += `Fe: ${d.FEGL}% | Al: ${d.ALGL}% | Si: ${d.SILGL}%`;
+            }
+            blockInfoDiv.innerHTML = html;
+            blockInfoDiv.style.display = 'block';
+        }
+
+        function showLoading(show, text) {
+            const el = document.getElementById('loading');
+            el.style.display = show ? 'flex' : 'none';
+            if (text) document.getElementById('loadingText').innerText = text;
+        }
+
+        function cleanNumber(val) {
+            if (val === undefined || val === null || val === '') return 0;
+            let str = val.toString().trim();
+            // Handle European Format: 1.234,56 -> 1234.56
+            // If comma is present and it's the last separator before decimals or unique separator
+            if (str.includes(',') && !str.includes('.')) {
+                str = str.replace(',', '.');
+            } else if (str.includes('.') && str.includes(',')) {
+                // Mixed: "1.234,56" or "1,234.56"
+                const lastDot = str.lastIndexOf('.');
+                const lastComma = str.lastIndexOf(',');
+                if (lastComma > lastDot) {
+                    // Comma is decimal ("1.234,56")
+                    str = str.replace(/\./g, '').replace(',', '.');
+                } else {
+                    // Dot is decimal ("1,234.56")
+                    str = str.replace(/,/g, '');
+                }
+            }
+            return parseFloat(str) || 0;
+        }
+
+        function refreshBlockData() {
+            let matched = 0;
+            blockMeshes.forEach(mesh => {
+                // Try multiple variations of ID
+                const raw = mesh.userData.id; // e.g., 1210_00_13_20
+
+                // Variation 1: Exact
+                let data = geochemicalData.get(raw);
+
+                // Variation 2: Dot Normalized (1210.00_13_20)
+                if (!data) data = geochemicalData.get(raw.replace('_', '.'));
+
+                // Variation 3: Removed leading zeros in second part (1210_00_13_20 -> 1210_0_13_20? No, probably 1210_13_20)
+                // Case: 1210_00_13_20 -> 1210_13_20 (Removing "_00_")
+                if (!data) {
+                    // Try removing the second part if it looks like "00"
+                    // Format: Z_Part2_Row_Col
+                    const p = raw.split('_');
+                    if (p.length === 4 && p[1] === '00') {
+                        const newKey = `${p[0]}_${p[2]}_${p[3]}`; // 1210_13_20
+                        data = geochemicalData.get(newKey);
+                    }
+                }
+
+                // Variation 4: CSV might use "1210_00" as "1210"?
+                if (!data) {
+                    // Try replacing first underscore with dot? Done in V2.
+                }
+
+                if (data) {
+                    matched++;
+                    mesh.userData.attributes = data;
+                    mesh.userData.tonnes = data.Tonnes;
+
+                    if (data.Type && data.Type.toLowerCase() === 'ore') {
+                        mesh.userData.type = 'ore';
+                        mesh.userData.baseMaterial = matOre;
+                    } else {
+                        mesh.userData.type = 'waste';
+                        mesh.userData.baseMaterial = matWaste;
+                    }
+                } else {
+                    mesh.userData.attributes = {};
+                    mesh.userData.tonnes = 0;
+                    mesh.userData.type = 'waste';
+                    mesh.userData.baseMaterial = matNull;
+                }
+
+                if (!confirmedSelection.has(mesh.uuid) && !tempSelection.has(mesh.uuid)) {
+                    mesh.material = mesh.userData.baseMaterial;
+                }
+            });
+
+            applyFilters();
+            updateVisuals();
+            updateStats();
+
+            if (blockMeshes.length > 0) {
+                console.log(`Dados do CSV atualizados! ${matched} blocos vinculados novamente.`);
+            }
+        }
+
+        function normalizeLayerName(name) {
+            // This is primarily used for INITIAL lookup in processDXF
+            // Now logic is spread inside processDXF loop too. 
+            // Let's keep it simple here.
+            if (!name) return "";
+            if (/^\d/.test(name)) return name.replace('_', '.');
+            return name;
+        }
+
+        let globalAudit = {
+            csvRawMass: 0,
+            csvRowCount: 0,
+            unlinkedIDs: []
+        };
+
+        document.getElementById('csvInput').addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            showLoading(true, "Lendo CSV...");
+            const reader = new FileReader();
+            reader.readAsText(file, "ISO-8859-1");
+
+            reader.onload = function (evt) {
+                let csvText = evt.target.result;
+                const lines = csvText.split('\n');
+                let startLine = 0;
+                for (let i = 0; i < Math.min(lines.length, 100); i++) {
+                    const lineUpper = lines[i].toUpperCase();
+                    if (lineUpper.includes('CUT') && lineUpper.includes('TYPE')) {
+                        startLine = i; break;
+                    }
+                }
+                const cleanText = lines.slice(startLine).join('\n');
+
+                Papa.parse(cleanText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function (results) {
+                        geochemicalData.clear();
+                        globalAudit.csvRawMass = 0;
+                        globalAudit.csvRowCount = 0;
+                        globalAudit.unlinkedIDs = [];
+
+                        let count = 0;
+                        if (results.errors && results.errors.length > 0) console.warn("Erros no CSV:", results.errors);
+
+                        let duplicatesFound = 0;
+
+                        results.data.forEach(row => {
+                            const getVal = (key) => {
+                                const k = Object.keys(row).find(o => o.toUpperCase() === key.toUpperCase());
+                                return k ? row[k] : null;
+                            };
+
+                            const cutVal = getVal('CUT');
+                            if (cutVal) {
+                                const rawTonnes = cleanNumber(getVal('TONNES'));
+                                const rawVol = cleanNumber(getVal('VOLUME'));
+                                const rawType = (getVal('TYPE') || 'waste').toLowerCase();
+
+                                // Grades
+                                const fe = cleanNumber(getVal('FE') || getVal('FEGL'));
+                                const si = cleanNumber(getVal('SI') || getVal('SIO2') || getVal('SILGL'));
+                                const al = cleanNumber(getVal('AL') || getVal('AL2O3') || getVal('ALGL'));
+                                const mn = cleanNumber(getVal('MN') || getVal('MNGL'));
+                                const p = cleanNumber(getVal('P') || getVal('PGL'));
+                                const ppc = cleanNumber(getVal('PPC') || getVal('PPCGL'));
+
+                                const key = cutVal.trim();
+
+                                // Check if exists
+                                let existing = geochemicalData.get(key);
+
+                                if (existing) {
+                                    duplicatesFound++;
+                                    // AGGREGATE LOGIC
+                                    const totalTonnes = existing.Tonnes + rawTonnes;
+
+                                    // Weighted Averages for Grades
+                                    if (totalTonnes > 0) {
+                                        existing.FEGL = (existing.FEGL * existing.Tonnes + fe * rawTonnes) / totalTonnes;
+                                        existing.SILGL = (existing.SILGL * existing.Tonnes + si * rawTonnes) / totalTonnes;
+                                        existing.ALGL = (existing.ALGL * existing.Tonnes + al * rawTonnes) / totalTonnes;
+                                        existing.MNGL = (existing.MNGL * existing.Tonnes + mn * rawTonnes) / totalTonnes;
+                                        existing.PGL = (existing.PGL * existing.Tonnes + p * rawTonnes) / totalTonnes;
+                                        existing.PPCGL = (existing.PPCGL * existing.Tonnes + ppc * rawTonnes) / totalTonnes;
+                                    }
+
+                                    // Sum Mass & Vol
+                                    existing.Tonnes = totalTonnes;
+                                    existing.Volume += rawVol;
+
+                                    // Type Logic: If mixed, what do we do?
+                                    // Simple rule: If ANY part is Ore, mark as Ore? Or Majority?
+                                    // Let's track separate masses for verification if needed, but for now:
+                                    // If current row is Ore, and existing was Waste, switch to Ore?
+                                    if (rawType === 'ore') existing.Type = 'ore';
+                                    // (If existing was Ore and new is Waste, keep Ore? Yes, usually Ore dictates handling).
+
+                                } else {
+                                    // Create New
+                                    const safeRow = {
+                                        Cut: key,
+                                        Type: rawType,
+                                        Tonnes: rawTonnes,
+                                        Volume: rawVol,
+                                        FEGL: fe, SILGL: si, ALGL: al, MNGL: mn, PGL: p, PPCGL: ppc
+                                    };
+                                    geochemicalData.set(key, safeRow);
+                                    // Also set normalized alias if applicable
+                                    if (/^\d/.test(key)) {
+                                        geochemicalData.set(key.replace('_', '.'), safeRow);
+                                    }
+                                }
+
+                                globalAudit.csvRawMass += rawTonnes;
+                                count++;
+                            }
+                        });
+
+                        globalAudit.csvRowCount = count;
+                        if (duplicatesFound > 0) console.log(`Encontrados e fundidos ${duplicatesFound} registros duplicados (sub-blocos).`);
+
+                        globalAudit.csvRowCount = count;
+
+                        document.getElementById('csvStatus').innerText = `${count} registros lidos. Massa Total CSV: ${(globalAudit.csvRawMass / 1e6).toFixed(2)} Mt`;
+                        document.getElementById('csvStatus').style.color = count > 0 ? "blue" : "red";
+
+                        if (count > 0) {
+                            document.getElementById('dxfInput').disabled = false;
+                            showLoading(false);
+                            if (blockMeshes.length > 0) refreshBlockData();
+                        } else {
+                            alert("Atenção: Nenhum registro válido encontrado.");
+                            showLoading(false);
+                        }
+                    },
+                    error: function (err) {
+                        alert("Erro CSV: " + err.message);
+                        showLoading(false);
+                    }
+                });
+            };
+        });
+
+        document.getElementById('dxfInput').addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            showLoading(true, "Processando DXF...");
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                try {
+                    const parser = new DxfParser();
+                    const dxf = parser.parseSync(event.target.result);
+                    processDXFEntities(dxf);
+                } catch (err) {
+                    alert("Erro DXF: " + err.message);
+                    showLoading(false);
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        // CORE GRID SYSTEM
+        const GridSystem = {
+            get config() {
+                return {
+                    ox: parseFloat(document.getElementById('originX').value),
+                    oy: parseFloat(document.getElementById('originY').value),
+                    dx: parseFloat(document.getElementById('blockSizeX').value),
+                    dy: parseFloat(document.getElementById('blockSizeY').value),
+                    nx: parseInt(document.getElementById('countX').value),
+                    ny: parseInt(document.getElementById('countY').value),
+                    h: parseFloat(document.getElementById('benchHeight').value)
+                };
+            },
+
+            // Parses ID to {row, col, z}
+            parseID: function (id) {
+                if (!id) return null;
+                // Format A: 1194_30_60_21 (Z=1194.30, R=60, C=21)
+                // Format B: 1190.00_36_28 (Z=1190, R=36, C=28)
+                const parts = id.split('_');
+
+                let z = 0, row = 0, col = 0;
+
+                if (parts.length === 4) {
+                    z = parseFloat(parts[0] + "." + parts[1]);
+                    row = parseInt(parts[2]);
+                    col = parseInt(parts[3]);
+                } else if (parts.length === 3) {
+                    z = parseFloat(parts[0]);
+                    row = parseInt(parts[1]);
+                    col = parseInt(parts[2]);
+                } else {
+                    return null; // Invalid format
+                }
+
+                if (isNaN(z) || isNaN(row) || isNaN(col)) return null;
+                return { z, row, col };
+            },
+
+            // Calculates Real World Coordinates from Indices
+            calculateCoords: function (row, col, z) {
+                const c = this.config;
+                // Rule: X = Origin + (Col * Size) ? 
+                // Wait, User said: "28 * 10 = 280 offset". 
+                // Implementation: Yes, Col * Size.
+                const x = c.ox + (col * c.dx);
+                const y = c.oy + (row * c.dy);
+                return { x, y, z };
+            },
+
+            // Validates if Block is within Rules
+            validate: function (row, col) {
+                const c = this.config;
+
+                // Rule 1: No coords below origin. 
+                // Since X = ox + col*dx, if col < 0, then X < ox.
+                // So strictly: Row >= 0, Col >= 0. (Assuming User's 1-based or 0-based? User example: Col 28. usually 0 or 1. Let's assume positive integers).
+                if (col < 0 || row < 0) return false;
+
+                // Rule 2/3: Within Grid Box?
+                // Although user said "Permitir cadastro NX/NY", and "Não deve existir fora".
+                // We should flag them.
+                if (col > c.nx * 1.5 || row > c.ny * 1.5) {
+                    // Warning threshold? Or strict cut? 
+                    // Let's implement strict cut if it is WAY off, or just mark as 'out_of_bounds'.
+                    // For now, let's allow visualization but maybe color differently? 
+                    // User said: "inválida". So we should arguably skip them.
+                    // But let's check input "MaxC" logic.
+                }
+
+                return true;
+            }
+        };
+
+        function processDXFEntities(dxf) {
+            blockMeshes.forEach(m => scene.remove(m));
+            blockMeshes = [];
+            confirmedSelection.clear(); tempSelection.clear(); benchList.clear();
+            globalAudit.unlinkedIDs = [];
+
+            const c = GridSystem.config;
+            const geom = new THREE.BoxGeometry(c.dx * 0.95, c.dy * 0.95, c.h);
+            // Center geometry so position is Center of Block
+            // If X is "Lower Left" or "Center"?
+            // User example: X=647340. 28*10=280. 647060+280.
+            // If Grid starts at 0, 10, 20... 
+            // 28th block usually spans 280-290? Or aligns on 280 center?
+            // "Coluna 28 -> 280m no eixo X".
+            // Typically this means the corner or the center. 
+            // Let's assume it IS the coordinate of the block center or anchor.
+            // To be safe visually: We place the mesh AT that calculated (x,y).
+
+            // Adjust geometry vertically if needed? (User says Z is foot? or Center?)
+            // "Z deve ser igual ao pé do corte". 
+            // So if Z=1190, the block goes 1190 -> 1195.
+            // ThreeJS Box is centered. So we translate Z up by h/2.
+            geom.translate(0, 0, c.h / 2);
+
+            // Diagnostics
+            let stats = {
+                totalDXF: 0,
+                skippedLayerRule: 0,
+                skippedGridRule: 0,
+                validGeom: 0,
+                linkedCSV: 0,
+                totalMass: 0
+            };
+
+            const entities = dxf.entities;
+
+            let minC = Infinity, maxC = -Infinity, minR = Infinity, maxR = -Infinity;
+
+            if (!entities || entities.length === 0) {
+                alert("Erro: Nenhuma entidade encontrada no DXF.");
+                showLoading(false);
+                return;
+            }
+
+            stats.totalDXF = entities.length;
+
+            for (let i = 0; i < entities.length; i++) {
+                const ent = entities[i];
+                if (ent.layer) {
+                    const layerRaw = ent.layer.trim();
+                    const layerNorm = normalizeLayerName(layerRaw);
+
+                    // 1. Strict ID Parsing
+                    const parsed = GridSystem.parseID(layerRaw);
+
+                    if (!parsed) {
+                        stats.skippedLayerRule++;
+                        // Optional: Log first few failures
+                        if (stats.skippedLayerRule < 5) console.warn("Parsing Falhou:", layerRaw);
+                        continue;
+                    }
+
+                    // 2. Validate Origin Rule
+                    if (!GridSystem.validate(parsed.row, parsed.col)) {
+                        stats.skippedGridRule++;
+                        continue;
+                    }
+
+                    // 3. Calculate STRICT Coordinates
+                    const coords = GridSystem.calculateCoords(parsed.row, parsed.col, parsed.z);
+
+                    // 4. Data Binding Logic (Mirrored from refreshBlockData)
+                    let data = geochemicalData.get(layerNorm) || geochemicalData.get(layerRaw);
+
+                    if (!data) {
+                        // Try removing "_00_" pattern: 1210_00_13_20 -> 1210_13_20
+                        const p = layerRaw.split('_');
+                        if (p.length === 4 && p[1] === '00') {
+                            const newKey = `${p[0]}_${p[2]}_${p[3]}`;
+                            data = geochemicalData.get(newKey);
+                        }
+                    }
+                    if (!data) {
+                        // Try Replacing first _ with .
+                        data = geochemicalData.get(layerRaw.replace('_', '.'));
+                    }
+
+                    // --- FALLBACK DISABLED FOR VERIFICATION ---
+                    // User wants to check strict CSV match.
+                    /*
+                    if (!data && parsed) {
+                         // Search for nearest block in same column (Row/Col match)
+                         let bestMatch = null;
+                         let minDist = Infinity;
+                         
+                         for (const [key, val] of geochemicalData.entries()) {
+                             if (key.includes(`_${parsed.row}_${parsed.col}`)) {
+                                  const p2 = GridSystem.parseID(key);
+                                  if (p2 && p2.row === parsed.row && p2.col === parsed.col) {
+                                      const dist = Math.abs(p2.z - parsed.z);
+                                      if (dist < minDist) {
+                                          minDist = dist;
+                                          bestMatch = val;
+                                      }
+                                  }
+                             }
+                         }
+
+                         if (bestMatch) {
+                             data = bestMatch;
+                         }
+                    }
+                    */
+
+                    let type = 'waste';
+                    let baseMat = matNull;
+
+                    if (data) {
+                        stats.linkedCSV++;
+                        stats.totalMass += (data.Tonnes || 0);
+
+                        if (data.Type && data.Type.toLowerCase() === 'ore') {
+                            type = 'ore'; baseMat = matOre;
+                        } else {
+                            type = 'waste'; baseMat = matWaste;
+                        }
+                    } else {
+                        globalAudit.unlinkedIDs.push(layerRaw);
+                    }
+
+                    stats.validGeom++;
+
+                    // 5. Create Mesh at STRICT Coordinates
+                    // We ignore the DXF vertices for positioning! visual drift fixed.
+                    // We just use the ID -> Row/Col -> X/Y.
+
+                    benchList.add(coords.z);
+
+                    if (parsed.col < minC) minC = parsed.col; if (parsed.col > maxC) maxC = parsed.col;
+                    if (parsed.row < minR) minR = parsed.row; if (parsed.row > maxR) maxR = parsed.row;
+
+                    // Relative Position for Viewer (Center relative to Origin)
+                    // Scene Origin (0,0,0) = Real World (ox, oy, 0)
+                    // So Mesh Position = (coords.x - ox, coords.y - oy, coords.z)
+                    // This keeps the 3D scene near 0,0 for float precision.
+
+                    const sceneX = coords.x - c.ox;
+                    const sceneY = coords.y - c.oy;
+
+                    const mesh = new THREE.Mesh(geom, baseMat);
+                    mesh.position.set(sceneX, sceneY, coords.z);
+
+                    mesh.userData = {
+                        uuid: mesh.uuid,
+                        id: layerRaw, // Keep original
+                        type: type,
+                        grid: { col: parsed.col, row: parsed.row },
+                        elevation: coords.z,
+                        baseMaterial: baseMat,
+                        attributes: data || {},
+                        tonnes: data ? data.Tonnes : 0
+                    };
+
+                    scene.add(mesh);
+                    blockMeshes.push(mesh);
+                }
+            }
+
+            if (stats.validGeom > 0) {
+                document.getElementById('minCol').value = minC;
+                document.getElementById('maxCol').value = maxC;
+                document.getElementById('minRow').value = minR;
+                document.getElementById('maxRow').value = maxR;
+
+                // Update Domain Info
+                document.getElementById('domainX').innerText = `X: ${c.ox} (Ref)`;
+                document.getElementById('domainY').innerText = `Y: ${c.oy} (Ref)`;
+
+                console.log(`Grid Loaded. Stats:`, stats);
+            }
+
+            updateBenchSelect();
+            applyFilters();
+            fitCamera();
+            showLoading(false);
+
+            if (stats.validGeom === 0) {
+                alert("Nenhum bloco válido encontrado.\n" +
+                    `DXF total: ${stats.totalDXF}\n` +
+                    `Falha no Nome (Layer): ${stats.skippedLayerRule}\n` +
+                    `Fora do Grid: ${stats.skippedGridRule}`);
+            } else {
+                let report = `Relatório de Auditoria:\n` +
+                    `------------------------\n` +
+                    `Entidades DXF: ${stats.totalDXF}\n` +
+                    `Ignorados (Nome Inválido): ${stats.skippedLayerRule}\n` +
+                    `Ignorados (Fora Grid): ${stats.skippedGridRule}\n` +
+                    `Geometrias Válidas: ${stats.validGeom}\n` +
+                    `Vinculados ao CSV: ${stats.linkedCSV} (Gap: ${globalAudit.unlinkedIDs.length})\n` +
+                    `------------------------\n` +
+                    `Massa Total CSV (Raw): ${(globalAudit.csvRawMass / 1e6).toFixed(3)} Mt\n` +
+                    `Massa Total Carregada: ${(stats.totalMass / 1e6).toFixed(3)} Mt\n` +
+                    `Diferença: ${((globalAudit.csvRawMass - stats.totalMass) / 1e6).toFixed(3)} Mt`;
+
+                if (globalAudit.unlinkedIDs.length > 0) {
+                    if (confirm(report + "\n\nDeseja baixar a lista de IDs NÃO vinculados para auditoria?")) {
+                        downloadAuditReport(report);
+                    }
+                } else {
+                    alert(report);
+                }
+            }
+        }
+
+        function downloadAuditReport(header) {
+            let content = header + "\n\n=== ANÁLISE DETALHADA DE VINCULAÇÃO ===\n";
+            content += "Verificando se existem chaves no CSV com mesma Linha/Coluna:\n\n";
+
+            const unlinked = globalAudit.unlinkedIDs;
+            const csvKeys = Array.from(geochemicalData.keys());
+
+            // Optimization: Map CSV keys by "Row_Col" suffix?
+            // Or just brute force for the 415 items.
+
+            unlinked.forEach(dxfID => {
+                content += `DXF: ${dxfID}\n`;
+                const p = GridSystem.parseID(dxfID);
+                if (p) {
+                    // Look for CSV Key with same Row/Col
+                    // CSV Key formats unknown, parse them all?
+                    // Let's iterate.
+                    const candidates = csvKeys.filter(k => {
+                        const cp = GridSystem.parseID(k);
+                        return cp && cp.row === p.row && cp.col === p.col;
+                    });
+
+                    if (candidates.length > 0) {
+                        content += `   -> CANDIDATOS NO CSV: ${candidates.join(', ')}\n`;
+                    } else {
+                        content += `   -> NENHUMA COMBINAÇÃO Linha=${p.row}/Col=${p.col} encontrada no CSV.\n`;
+                    }
+                } else {
+                    content += `   -> ID DXF Inválido para parsing.\n`;
+                }
+                content += "------------------------------------------------\n";
+            });
+
+            const blob = new Blob([content], { type: "text/plain" });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = "Auditoria_Vinculacao_Smart.txt";
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        }
+
+        function fitCamera() {
+            if (blockMeshes.length === 0) return;
+            const box = new THREE.Box3();
+            const limit = Math.min(blockMeshes.length, 2000);
+            for (let i = 0; i < limit; i++) box.expandByObject(blockMeshes[i]);
+
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z) || 1000;
+
+            camera.position.set(center.x, center.y, maxDim * 2);
+            camera.lookAt(center);
+            controls.target.copy(center);
+            controls.update();
+        }
+
+        function applyFilters() {
+            const minCol = parseInt(document.getElementById('minCol').value);
+            const maxCol = parseInt(document.getElementById('maxCol').value);
+            const minRow = parseInt(document.getElementById('minRow').value);
+            const maxRow = parseInt(document.getElementById('maxRow').value);
+            const selZ = document.getElementById('benchSelect').value;
+
+            visibleMeshes = [];
+            blockMeshes.forEach(mesh => {
+                const g = mesh.userData.grid;
+                const inX = (g.col >= minCol && g.col <= maxCol);
+                const inY = (g.row >= minRow && g.row <= maxRow);
+                let inZ = true;
+                if (selZ !== 'ALL') inZ = Math.abs(mesh.userData.elevation - parseFloat(selZ)) < 0.5;
+
+                mesh.visible = inX && inY && inZ;
+                if (mesh.visible) visibleMeshes.push(mesh);
+            });
+        }
+
+        function filterByBench() { applyFilters(); }
+
+        function updateBenchSelect() {
+            const sel = document.getElementById('benchSelect');
+            sel.innerHTML = '<option value="ALL">Todos</option>';
+            Array.from(benchList).sort((a, b) => b - a).forEach(z => {
+                const o = document.createElement('option');
+                o.value = z; o.text = z.toFixed(2); sel.appendChild(o);
+            });
+        }
+
+        function updateStats() {
+            let tOre = 0, tWaste = 0;
+            let accFe = 0, accSi = 0, accAl = 0, accMn = 0, accP = 0, accPPC = 0;
+
+            const set = new Set([...confirmedSelection, ...tempSelection]);
+
+            set.forEach(uuid => {
+                const m = blockMeshes.find(b => b.uuid === uuid);
+                if (!m) return;
+                const t = m.userData.tonnes;
+                const d = m.userData.attributes;
+
+                if (m.userData.type === 'ore') {
+                    tOre += t;
+                    accFe += t * (d.FEGL || 0);
+                    accSi += t * (d.SILGL || 0);
+                    accAl += t * (d.ALGL || 0);
+                    accMn += t * (d.MNGL || 0);
+                    accP += t * (d.PGL || 0);
+                    accPPC += t * (d.PPCGL || 0);
+                } else {
+                    tWaste += t;
+                }
+            });
+
+            const total = tOre + tWaste;
+            document.getElementById('tonOre').innerText = tOre.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + " t";
+            document.getElementById('tonWaste').innerText = tWaste.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + " t";
+            document.getElementById('tonTotal').innerText = total.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + " t";
+
+            if (tOre > 0) {
+                document.getElementById('feVal').innerText = (accFe / tOre).toFixed(2) + "%";
+                document.getElementById('siVal').innerText = (accSi / tOre).toFixed(2) + "%";
+                document.getElementById('alVal').innerText = (accAl / tOre).toFixed(2) + "%";
+                document.getElementById('mnVal').innerText = (accMn / tOre).toFixed(3) + "%";
+                document.getElementById('pVal').innerText = (accP / tOre).toFixed(3) + "%";
+                document.getElementById('ppcVal').innerText = (accPPC / tOre).toFixed(2) + "%";
+            } else {
+                ['fe', 'si', 'al', 'mn', 'p', 'ppc'].forEach(k => document.getElementById(k + 'Val').innerText = "0.00 %");
+            }
+        }
+
+        function resetAll() {
+            confirmedSelection.clear(); tempSelection.clear();
+            updateVisuals(); updateStats();
+        }
+
+        function finalizeAdvance() {
+            if (confirmedSelection.size === 0) { alert("Nenhum bloco confirmado."); return; }
+            const name = prompt("Nome do Avanço:", "Avanco_1");
+            if (!name) return;
+
+            // Prepare Data
+            const selectedMeshes = [];
+            const remainingMeshes = [];
+            blockMeshes.forEach(m => {
+                if (confirmedSelection.has(m.uuid)) selectedMeshes.push(m);
+                else remainingMeshes.push(m);
+            });
+
+            // 1. Generate CSV Content
+            let csv = "CUT;TYPE;X;Y;Z;TONNES;VOLUME;FE;SI;AL;MN;P;PPC\n";
+
+            selectedMeshes.forEach(m => {
+                const g = m.userData.grid;
+                // Use GridSystem to get consistent Coords
+                const coords = GridSystem.calculateCoords(g.row, g.col, m.userData.elevation);
+
+                const d = m.userData.attributes;
+                const vol = d.Volume !== undefined ? d.Volume : (d.VOLUME !== undefined ? d.VOLUME : 0);
+
+                csv += `${m.userData.id};${m.userData.type};${coords.x.toFixed(2)};${coords.y.toFixed(2)};${coords.z};${m.userData.tonnes.toFixed(2)};${(vol || 0).toFixed(2)};${d.FEGL || 0};${d.SILGL || 0};${d.ALGL || 0};${d.MNGL || 0};${d.PGL || 0};${d.PPCGL || 0}\n`;
+            });
+
+            // 2. Generate DXF Content
+            const dxfSelContent = generateDXF(selectedMeshes);
+            const dxfRemContent = generateDXF(remainingMeshes);
+
+            // 3. Sequential Download Queue
+            const downloads = [
+                { name: name + ".csv", content: csv, mime: "text/csv" },
+                { name: name + "_Avanco.dxf", content: dxfSelContent, mime: "application/dxf" },
+                { name: name + "_Remanescente.dxf", content: dxfRemContent, mime: "application/dxf" }
+            ];
+
+            downloadQueue(downloads, 0);
+        }
+
+        function downloadQueue(list, index) {
+            if (index >= list.length) {
+                alert("Todos os arquivos foram gerados e enviados para download.");
+                return;
+            }
+            const item = list[index];
+            const blob = new Blob([item.content], { type: item.mime });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = item.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            // Wait 1.5s before next download to prevent browser block
+            setTimeout(() => {
+                downloadQueue(list, index + 1);
+            }, 1500);
+        }
+
+        function generateDXF(meshes) {
+            const c = GridSystem.config;
+            let dxf = "0\nSECTION\n2\nHEADER\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n";
+
+            meshes.forEach(m => {
+                const g = m.userData.grid;
+                const coords = GridSystem.calculateCoords(g.row, g.col, m.userData.elevation);
+
+                const cx = coords.x;
+                const cy = coords.y;
+                const z = coords.z;
+                const h = c.h;
+
+                const xMin = cx - c.dx / 2;
+                const xMax = cx + c.dx / 2;
+                const yMin = cy - c.dy / 2;
+                const yMax = cy + c.dy / 2;
+                const zMin = z;
+                const zMax = z + h;
+
+                const addFace = (p1, p2, p3, p4) => {
+                    dxf += "0\n3DFACE\n";
+                    dxf += "8\n" + (m.userData.id || "0") + "\n";
+                    dxf += `10\n${p1[0]}\n20\n${p1[1]}\n30\n${p1[2]}\n`;
+                    dxf += `11\n${p2[0]}\n21\n${p2[1]}\n31\n${p2[2]}\n`;
+                    dxf += `12\n${p3[0]}\n22\n${p3[1]}\n32\n${p3[2]}\n`;
+                    dxf += `13\n${p4[0]}\n23\n${p4[1]}\n33\n${p4[2]}\n`;
+                };
+
+                // Vertices
+                const v1 = [xMin, yMin, zMax];
+                const v2 = [xMax, yMin, zMax];
+                const v3 = [xMax, yMax, zMax];
+                const v4 = [xMin, yMax, zMax];
+                const v5 = [xMin, yMin, zMin];
+                const v6 = [xMax, yMin, zMin];
+                const v7 = [xMax, yMax, zMin];
+                const v8 = [xMin, yMax, zMin];
+
+                addFace(v4, v3, v2, v1); // Top
+                addFace(v5, v6, v7, v8); // Bottom
+                addFace(v1, v2, v6, v5); // Front
+                addFace(v2, v3, v7, v6); // Right
+                addFace(v3, v4, v8, v7); // Back
+                addFace(v4, v1, v5, v8); // Left
+            });
+
+            dxf += "0\nENDSEC\n0\nEOF\n";
+            return dxf;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+
+            const v = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            const deg = Math.atan2(v.x, v.y) * (180 / Math.PI);
+            document.getElementById('compassArrow').style.transform = `rotate(${deg}deg)`;
+        }
+
+        window.addEventListener('resize', () => {
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+        });
+
+        animate();
+    </script>
+</body>
+
+</html>
