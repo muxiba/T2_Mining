@@ -7,6 +7,8 @@
     <title>MinePlan Seq - Versão Final Completa</title>
 
     <!-- Bibliotecas Externas -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.0/dist/umd/supabase.js"></script>
+    <script src="supabaseClient.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/dist/dxf-parser.js"></script>
@@ -32,6 +34,31 @@
             gap: 8px;
             overflow-y: auto;
             z-index: 10;
+        }
+
+        /* Login form styling */
+        #login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        #login-form input {
+            padding: 8px;
+            font-size: 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+        }
+        #login-form button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #login-form button:hover {
+            background: #218838;
         }
 
         #viewer-container {
@@ -160,6 +187,9 @@
             margin-bottom: 15px;
         }
 
+        /* Hide main UI until authenticated */
+        #main-ui { display: none; }
+
         @keyframes spin {
             0% {
                 transform: rotate(0deg);
@@ -281,98 +311,110 @@
         <div id="loadingText">Carregando...</div>
     </div>
 
-    <div id="context-menu">
-        <div id="btn-confirm-selection">✅ Confirmar Seleção</div>
-        <div id="btn-cancel-selection" style="border-top:1px solid #eee; color: red;">❌ Cancelar Seleção</div>
+    <div id="login-section" style="padding: 20px;">
+        <h2>Login</h2>
+        <form id="login-form">
+            <input type="email" id="login-email" placeholder="Email" required>
+            <input type="password" id="login-pass" placeholder="Senha" required>
+            <button type="submit">Entrar</button>
+        </form>
     </div>
 
-    <div id="sidebar">
-        <h2 style="border-bottom: 2px solid #007bff; color: #007bff;">Planejamento de Lavra</h2>
-
-        <div class="control-group">
-            <label>1. Importar Dados (CSV)</label>
-            <div style="font-size:10px; color:#666; margin-bottom:5px">Obrigatório: Colunas CUT, TYPE...</div>
-            <input type="file" id="csvInput" accept=".csv">
-            <div id="csvStatus" style="color: #666; font-size: 11px;">Aguardando...</div>
+    <div id="main-ui">
+        <div id="context-menu">
+            <div id="btn-confirm-selection">✅ Confirmar Seleção</div>
+            <div id="btn-cancel-selection" style="border-top:1px solid #eee; color: red;">❌ Cancelar Seleção</div>
         </div>
 
-        <div class="control-group">
-            <label>2. Configuração do Grid (Base)</label>
+        <div id="sidebar">
+            <h2 id="project-title" style="border-bottom: 2px solid #007bff; color: #007bff;">Planejamento de Lavra</h2>
+            <ul id="file-list"></ul>
 
-            <div class="section-title">Coordenada de Origem</div>
-            <div class="row-inputs">
-                <div><label>Origem X</label><input type="number" id="originX" value="647060"></div>
-                <div><label>Origem Y</label><input type="number" id="originY" value="7784080"></div>
+            <div class="control-group">
+                <label>1. Importar Dados (CSV)</label>
+                <div style="font-size:10px; color:#666; margin-bottom:5px">Obrigatório: Colunas CUT, TYPE...</div>
+                <input type="file" id="csvInput" accept=".csv">
+                <div id="csvStatus" style="color: #666; font-size: 11px;">Aguardando...</div>
             </div>
 
-            <div class="section-title">Dimensões do Corte</div>
-            <div class="row-inputs">
-                <div><label>Tam. X (m)</label><input type="number" id="blockSizeX" value="10"></div>
-                <div><label>Tam. Y (m)</label><input type="number" id="blockSizeY" value="10"></div>
+            <div class="control-group">
+                <label>2. Configuração do Grid (Base)</label>
+
+                <div class="section-title">Coordenada de Origem</div>
+                <div class="row-inputs">
+                    <div><label>Origem X</label><input type="number" id="originX" value="647060"></div>
+                    <div><label>Origem Y</label><input type="number" id="originY" value="7784080"></div>
+                </div>
+
+                <div class="section-title">Dimensões do Corte</div>
+                <div class="row-inputs">
+                    <div><label>Tam. X (m)</label><input type="number" id="blockSizeX" value="10"></div>
+                    <div><label>Tam. Y (m)</label><input type="number" id="blockSizeY" value="10"></div>
+                </div>
+
+                <div class="section-title">Extensão do Grid</div>
+                <div class="row-inputs">
+                    <div><label>Colunas (Total X)</label><input type="number" id="countX" value="35"></div>
+                    <div><label>Linhas (Total Y)</label><input type="number" id="countY" value="75"></div>
+                </div>
+
+                <label style="margin-top:5px">Altura do Banco (Z)</label>
+                <input type="number" id="benchHeight" value="5" style="width: 100%">
+
+                <div
+                    style="font-size:10px; color:blue; margin-top:5px; background:#f0f8ff; padding:5px; border-radius:4px;">
+                    <b>Domínio Calculado:</b><br>
+                    X: <span id="domainX"></span><br>
+                    Y: <span id="domainY"></span>
+                </div>
             </div>
 
-            <div class="section-title">Extensão do Grid</div>
-            <div class="row-inputs">
-                <div><label>Colunas (Total X)</label><input type="number" id="countX" value="35"></div>
-                <div><label>Linhas (Total Y)</label><input type="number" id="countY" value="75"></div>
+            <div class="control-group">
+                <label>3. Geometria (DXF)</label>
+                <input type="file" id="dxfInput" accept=".dxf" disabled>
             </div>
 
-            <label style="margin-top:5px">Altura do Banco (Z)</label>
-            <input type="number" id="benchHeight" value="5" style="width: 100%">
+            <div class="control-group" id="seqControls" style="opacity: 0.6; pointer-events: none;">
+                <label>4. Limites de Lavra</label>
 
-            <div
-                style="font-size:10px; color:blue; margin-top:5px; background:#f0f8ff; padding:5px; border-radius:4px;">
-                <b>Domínio Calculado:</b><br>
-                X: <span id="domainX"></span><br>
-                Y: <span id="domainY"></span>
-            </div>
-        </div>
+                <div class="section-title">Eixo X (Colunas de/até)</div>
+                <div class="row-inputs">
+                    <input type="number" id="minCol" placeholder="De" value="1">
+                    <input type="number" id="maxCol" placeholder="Até" value="35">
+                </div>
 
-        <div class="control-group">
-            <label>3. Geometria (DXF)</label>
-            <input type="file" id="dxfInput" accept=".dxf" disabled>
-        </div>
+                <div class="section-title">Eixo Y (Linhas de/até)</div>
+                <div class="row-inputs">
+                    <input type="number" id="minRow" placeholder="De" value="1">
+                    <input type="number" id="maxRow" placeholder="Até" value="75">
+                </div>
 
-        <div class="control-group" id="seqControls" style="opacity: 0.6; pointer-events: none;">
-            <label>4. Limites de Lavra</label>
-
-            <div class="section-title">Eixo X (Colunas de/até)</div>
-            <div class="row-inputs">
-                <input type="number" id="minCol" placeholder="De" value="1">
-                <input type="number" id="maxCol" placeholder="Até" value="35">
+                <button onclick="applyFilters()">Aplicar Filtros</button>
+                <label style="margin-top:8px">Visualizar Banco (Z)</label>
+                <select id="benchSelect" onchange="filterByBench()" style="width:100%">
+                    <option value="ALL">Todos</option>
+                </select>
             </div>
 
-            <div class="section-title">Eixo Y (Linhas de/até)</div>
-            <div class="row-inputs">
-                <input type="number" id="minRow" placeholder="De" value="1">
-                <input type="number" id="maxRow" placeholder="Até" value="75">
+            <div class="stats-box">
+                <h3>Massa (Confirmada + Seleção)</h3>
+                <div class="stat-row"><span>Minério:</span> <span class="stat-val" id="tonOre">0 t</span></div>
+                <div class="stat-row"><span>Estéril:</span> <span class="stat-val" id="tonWaste">0 t</span></div>
+                <div class="stat-row stat-total"><span>Total:</span> <span class="stat-val" id="tonTotal">0 t</span></div>
+
+                <h3>Qualidade Ponderada (Minério)</h3>
+                <div class="stat-row"><span>Fe:</span> <span class="stat-val" id="feVal">0.00 %</span></div>
+                <div class="stat-row"><span>SiO2:</span> <span class="stat-val" id="siVal">0.00 %</span></div>
+                <div class="stat-row"><span>Al2O3:</span> <span class="stat-val" id="alVal">0.00 %</span></div>
+                <div class="stat-row"><span>Mn:</span> <span class="stat-val" id="mnVal">0.00 %</span></div>
+                <div class="stat-row"><span>P:</span> <span class="stat-val" id="pVal">0.00 %</span></div>
+                <div class="stat-row"><span>PPC:</span> <span class="stat-val" id="ppcVal">0.00 %</span></div>
             </div>
 
-            <button onclick="applyFilters()">Aplicar Filtros</button>
-            <label style="margin-top:8px">Visualizar Banco (Z)</label>
-            <select id="benchSelect" onchange="filterByBench()" style="width:100%">
-                <option value="ALL">Todos</option>
-            </select>
-        </div>
-
-        <div class="stats-box">
-            <h3>Massa (Confirmada + Seleção)</h3>
-            <div class="stat-row"><span>Minério:</span> <span class="stat-val" id="tonOre">0 t</span></div>
-            <div class="stat-row"><span>Estéril:</span> <span class="stat-val" id="tonWaste">0 t</span></div>
-            <div class="stat-row stat-total"><span>Total:</span> <span class="stat-val" id="tonTotal">0 t</span></div>
-
-            <h3>Qualidade Ponderada (Minério)</h3>
-            <div class="stat-row"><span>Fe:</span> <span class="stat-val" id="feVal">0.00 %</span></div>
-            <div class="stat-row"><span>SiO2:</span> <span class="stat-val" id="siVal">0.00 %</span></div>
-            <div class="stat-row"><span>Al2O3:</span> <span class="stat-val" id="alVal">0.00 %</span></div>
-            <div class="stat-row"><span>Mn:</span> <span class="stat-val" id="mnVal">0.00 %</span></div>
-            <div class="stat-row"><span>P:</span> <span class="stat-val" id="pVal">0.00 %</span></div>
-            <div class="stat-row"><span>PPC:</span> <span class="stat-val" id="ppcVal">0.00 %</span></div>
-        </div>
-
-        <div class="control-group">
-            <button class="reset" onclick="resetAll()">Reiniciar Seleção</button>
-            <button class="finish" onclick="finalizeAdvance()">✅ FINALIZAR AVANÇO</button>
+            <div class="control-group">
+                <button class="reset" onclick="resetAll()">Reiniciar Seleção</button>
+                <button class="finish" onclick="finalizeAdvance()">✅ FINALIZAR AVANÇO</button>
+            </div>
         </div>
     </div>
 
@@ -1470,6 +1512,74 @@
             renderer.setSize(container.clientWidth, container.clientHeight);
             camera.aspect = container.clientWidth / container.clientHeight;
             camera.updateProjectionMatrix();
+        });
+
+        // ---- Supabase Authentication Flow ----
+        async function initApp() {
+            // Show login form, hide main UI
+            document.getElementById('login-section').style.display = 'block';
+            document.getElementById('main-ui').style.display = 'none';
+
+            const { data: { user }, error } = await supabase.auth.getUser();
+            if (user) {
+                await afterLogin(user);
+            }
+        }
+
+        async function afterLogin(user) {
+            // Hide login, show main UI
+            document.getElementById('login-section').style.display = 'none';
+            document.getElementById('main-ui').style.display = 'block';
+
+            // Load mine data for this user
+            const { data: mines, error: mineErr } = await supabase
+                .from('mines')
+                .select('*')
+                .eq('owner_id', user.id);
+            if (mineErr) console.error('Error fetching mines', mineErr);
+            else if (mines && mines.length > 0) {
+                const mine = mines[0]; // assuming one mine per client
+                // You can populate UI with mine.name etc.
+                document.getElementById('project-title').innerText = mine.name;
+                // Load associated files
+                const { data: files, error: fileErr } = await supabase
+                    .from('files')
+                    .select('file_name,file_url')
+                    .eq('mine_id', mine.id);
+                if (fileErr) console.error('Error fetching files', fileErr);
+                else {
+                    const fileList = document.getElementById('file-list');
+                    fileList.innerHTML = '';
+                    files.forEach(f => {
+                        const li = document.createElement('li');
+                        const a = document.createElement('a');
+                        a.href = f.file_url;
+                        a.textContent = f.file_name;
+                        a.target = '_blank';
+                        li.appendChild(a);
+                        fileList.appendChild(li);
+                    });
+                }
+            }
+        }
+
+        // Login form handler
+        async function handleLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-pass').value;
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) {
+                alert('Login failed: ' + error.message);
+                return;
+            }
+            await afterLogin(data.user);
+        }
+
+        // Attach login handler
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('login-form').addEventListener('submit', handleLogin);
+            initApp();
         });
 
         animate();
