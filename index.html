@@ -34,6 +34,7 @@
             gap: 8px;
             overflow-y: auto;
             z-index: 10;
+            flex: 1;
         }
 
         /* Login form styling */
@@ -188,7 +189,22 @@
         }
 
         /* Hide main UI until authenticated */
-        #main-ui { display: none; }
+        #main-ui { display: none; height: 100%; flex-direction: column; }
+        
+        #admin-panel {
+            display: none;
+            padding: 20px;
+            background: white;
+            flex: 1;
+            overflow-y: auto;
+        }
+        #admin-panel h2 { color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 5px; }
+        #admin-panel form { display: flex; flex-direction: column; gap: 15px; max-width: 500px; }
+        #admin-panel label { font-size: 13px; margin-bottom: 2px; }
+        #admin-panel input { width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px; font-size: 13px; }
+        #admin-panel button { background: #28a745; color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
+        #admin-panel button:hover { background: #218838; }
+
 
         @keyframes spin {
             0% {
@@ -317,6 +333,45 @@
             <input type="email" id="login-email" placeholder="Email" required>
             <input type="password" id="login-pass" placeholder="Senha" required>
             <button type="submit">Entrar</button>
+        </form>
+    </div>
+
+    <div id="admin-panel">
+        <h2>Painel de Administrador</h2>
+        <p>Crie um novo cliente e defina os parâmetros do Grid dele.</p>
+        <form id="admin-form">
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6;">
+                <h3 style="margin-top:0; color:#495057;">Dados do Cliente</h3>
+                <label>Email do Cliente</label>
+                <input type="email" id="admin-client-email" required>
+                <label style="margin-top:10px;">Senha Inicial</label>
+                <input type="text" id="admin-client-pass" required>
+                <label style="margin-top:10px;">Nome da Mina / Projeto</label>
+                <input type="text" id="admin-mine-name" required>
+            </div>
+
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 5px; border: 1px solid #b8daff;">
+                <h3 style="margin-top:0; color:#0056b3;">Parâmetros Fixos do Grid</h3>
+                <div style="display:flex; gap:10px;">
+                    <div style="flex:1"><label>Origem X</label><input type="number" id="admin-orig-x" required></div>
+                    <div style="flex:1"><label>Origem Y</label><input type="number" id="admin-orig-y" required></div>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    <div style="flex:1"><label>Tam. Bloco X</label><input type="number" id="admin-size-x" required></div>
+                    <div style="flex:1"><label>Tam. Bloco Y</label><input type="number" id="admin-size-y" required></div>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    <div style="flex:1"><label>Total Colunas (X)</label><input type="number" id="admin-count-x" required></div>
+                    <div style="flex:1"><label>Total Linhas (Y)</label><input type="number" id="admin-count-y" required></div>
+                </div>
+                <div style="margin-top:10px;">
+                    <label>Altura do Banco (Z)</label>
+                    <input type="number" id="admin-bench-z" required>
+                </div>
+            </div>
+
+            <button type="submit" id="admin-submit-btn">✅ Cadastrar Cliente e Salvar Grid</button>
+            <div id="admin-msg" style="font-weight:bold; margin-top:10px;"></div>
         </form>
     </div>
 
@@ -693,22 +748,29 @@
         }
 
         function showBlockInfo(mesh) {
-            const d = mesh.userData.attributes;
-            const g = mesh.userData.grid;
-            const ox = parseFloat(document.getElementById('originX').value);
-            const oy = parseFloat(document.getElementById('originY').value);
+    const d = mesh.userData.attributes;
+    const g = mesh.userData.grid;
+    const ox = parseFloat(document.getElementById('originX').value);
+    const oy = parseFloat(document.getElementById('originY').value);
 
-            let html = `<b>${mesh.userData.id}</b><br>`;
-            html += `X: ${(mesh.position.x + ox).toFixed(1)} | Y: ${(mesh.position.y + oy).toFixed(1)}<br>`;
-            html += `Col(X): ${g.col} | Lin(Y): ${g.row}<br>`;
-            html += `Tipo: ${mesh.userData.type.toUpperCase()}<br>`;
-            html += `Massa: ${mesh.userData.tonnes.toFixed(2)} t<br>`;
-            if (mesh.userData.type === 'ore') {
-                html += `Fe: ${d.FEGL}% | Al: ${d.ALGL}% | Si: ${d.SILGL}%`;
-            }
-            blockInfoDiv.innerHTML = html;
-            blockInfoDiv.style.display = 'block';
-        }
+    let html = `<b>${mesh.userData.id}</b><br>`;
+    html += `X: ${(mesh.position.x + ox).toFixed(1)} | Y: ${(mesh.position.y + oy).toFixed(1)}<br>`;
+    html += `Col(X): ${g.col} | Lin(Y): ${g.row}<br>`;
+    html += `Tipo: ${mesh.userData.type.toUpperCase()}<br>`;
+    html += `Massa: ${mesh.userData.tonnes.toFixed(2)} t<br>`;
+    if (mesh.userData.type === 'ore') {
+        const parts = [];
+        if (d.FEGL !== undefined) parts.push(`Fe: ${d.FEGL.toFixed(2)}%`);
+        if (d.ALGL !== undefined) parts.push(`Al: ${d.ALGL.toFixed(2)}%`);
+        if (d.SILGL !== undefined) parts.push(`Si: ${d.SILGL.toFixed(2)}%`);
+        if (d.MNGL !== undefined) parts.push(`Mn: ${d.MNGL.toFixed(2)}%`);
+        if (d.PGL !== undefined) parts.push(`P: ${d.PGL.toFixed(3)}%`);
+        if (d.PPCGL !== undefined) parts.push(`PPC: ${d.PPCGL.toFixed(2)}%`);
+        html += parts.join(' | ') + '<br>';
+    }
+    blockInfoDiv.innerHTML = html;
+    blockInfoDiv.style.display = 'block';
+}
 
         function showLoading(show, text) {
             const el = document.getElementById('loading');
@@ -1527,9 +1589,21 @@
         }
 
         async function afterLogin(user) {
-            // Hide login, show main UI
+            // Hide login
             document.getElementById('login-section').style.display = 'none';
-            document.getElementById('main-ui').style.display = 'block';
+
+            // Check if admin
+            const adminEmails = ['marcelo@msatrindade.com.br', 'admin@msatrindade.com.br']; // Adjust as needed
+            if (adminEmails.includes(user.email)) {
+                // Show admin panel, hide others
+                document.getElementById('admin-panel').style.display = 'block';
+                document.getElementById('main-ui').style.display = 'none';
+                document.getElementById('viewer-container').style.display = 'none';
+                return;
+            }
+
+            // Normal user: show main UI
+            document.getElementById('main-ui').style.display = 'flex';
 
             // Load mine data for this user
             const { data: mines, error: mineErr } = await supabase
@@ -1539,8 +1613,44 @@
             if (mineErr) console.error('Error fetching mines', mineErr);
             else if (mines && mines.length > 0) {
                 const mine = mines[0]; // assuming one mine per client
-                // You can populate UI with mine.name etc.
+                
+                // Populate UI with mine.name
                 document.getElementById('project-title').innerText = mine.name;
+
+                // Set Grid parameters from DB and disable inputs
+                if (mine.origin_x !== null) {
+                    document.getElementById('originX').value = mine.origin_x;
+                    document.getElementById('originX').disabled = true;
+                }
+                if (mine.origin_y !== null) {
+                    document.getElementById('originY').value = mine.origin_y;
+                    document.getElementById('originY').disabled = true;
+                }
+                if (mine.block_size_x !== null) {
+                    document.getElementById('blockSizeX').value = mine.block_size_x;
+                    document.getElementById('blockSizeX').disabled = true;
+                }
+                if (mine.block_size_y !== null) {
+                    document.getElementById('blockSizeY').value = mine.block_size_y;
+                    document.getElementById('blockSizeY').disabled = true;
+                }
+                if (mine.count_x !== null) {
+                    document.getElementById('countX').value = mine.count_x;
+                    document.getElementById('countX').disabled = true;
+                    // Also set max bounds for selection logic
+                    document.getElementById('maxCol').value = mine.count_x;
+                }
+                if (mine.count_y !== null) {
+                    document.getElementById('countY').value = mine.count_y;
+                    document.getElementById('countY').disabled = true;
+                    document.getElementById('maxRow').value = mine.count_y;
+                }
+                if (mine.bench_height !== null) {
+                    document.getElementById('benchHeight').value = mine.bench_height;
+                    document.getElementById('benchHeight').disabled = true;
+                }
+                updateDomainDisplay();
+
                 // Load associated files
                 const { data: files, error: fileErr } = await supabase
                     .from('files')
@@ -1579,8 +1689,70 @@
         // Attach login handler
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('login-form').addEventListener('submit', handleLogin);
+            
+            // Attach admin form handler
+            const adminForm = document.getElementById('admin-form');
+            if (adminForm) {
+                adminForm.addEventListener('submit', handleAdminSubmit);
+            }
+            
             initApp();
         });
+
+        // Admin form handler
+        async function handleAdminSubmit(event) {
+            event.preventDefault();
+            const btn = document.getElementById('admin-submit-btn');
+            const msgBox = document.getElementById('admin-msg');
+            btn.disabled = true;
+            btn.innerText = 'Salvando...';
+            msgBox.innerText = '';
+            msgBox.style.color = 'black';
+
+            const payload = {
+                clientEmail: document.getElementById('admin-client-email').value,
+                clientPassword: document.getElementById('admin-client-pass').value,
+                mineName: document.getElementById('admin-mine-name').value,
+                originX: parseFloat(document.getElementById('admin-orig-x').value),
+                originY: parseFloat(document.getElementById('admin-orig-y').value),
+                blockSizeX: parseFloat(document.getElementById('admin-size-x').value),
+                blockSizeY: parseFloat(document.getElementById('admin-size-y').value),
+                countX: parseInt(document.getElementById('admin-count-x').value),
+                countY: parseInt(document.getElementById('admin-count-y').value),
+                benchHeight: parseFloat(document.getElementById('admin-bench-z').value)
+            };
+
+            try {
+                // We send the current admin's token in headers to authenticate the request
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) throw new Error("Você não está logado.");
+
+                // Adjust URL for Vercel API
+                // Em dev (http-server simples) isso vai dar erro de 404 a não ser que usemos o Vercel CLI.
+                // Mas na Vercel vai funcionar perfeitamente.
+                const res = await fetch('/api/adminCreateUser', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Erro desconhecido da API');
+
+                msgBox.style.color = 'green';
+                msgBox.innerText = 'Sucesso! Usuário e Configurações criados. (' + data.userId + ')';
+                document.getElementById('admin-form').reset();
+            } catch(err) {
+                msgBox.style.color = 'red';
+                msgBox.innerText = 'Erro: ' + err.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerText = '✅ Cadastrar Cliente e Salvar Grid';
+            }
+        }
 
         animate();
     </script>
