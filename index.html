@@ -1739,8 +1739,13 @@
                     body: JSON.stringify(payload)
                 });
 
-                const data = await res.json();
+                // Safely parse response - show raw text if not JSON
+                const rawText = await res.text();
+                let data = {};
+                try { data = JSON.parse(rawText); } 
+                catch(e) { throw new Error('API retornou resposta inesperada (HTTP ' + res.status + '): ' + rawText.substring(0, 300)); }
                 if (!res.ok) throw new Error(data.error || 'Erro desconhecido da API');
+
 
                 msgBox.style.color = 'green';
                 msgBox.innerText = 'Sucesso! Usuário e Configurações criados. (' + data.userId + ')';
